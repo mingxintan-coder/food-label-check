@@ -119,7 +119,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
 <div class="wrap">
   <header>
     <h1>配料表体检<small>拍一下包装背面，看看它到底放了什么</small></h1>
-    <span class="tag">GB 7718 · 按含量降序</span>
+    <span class="tag">v1.4.0</span>
   </header>
 
   <section class="card capture" aria-label="扫描配料表">
@@ -146,14 +146,14 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
     <p class="hint" id="capHint">拍照时让配料表填满画面、光线均匀，文字越清楚识别越准。</p>
   </section>
 
-  <section class="card result" id="result" aria-live="polite"></section>
+  <section class="card result" id="result" aria-live="polite" hidden></section>
 
   <section class="history" id="historyWrap" hidden>
     <p class="section-label">最近扫描</p>
     <div class="history" id="history"></div>
   </section>
 
-  <footer>评分只看配料表本身，不考虑分量和你的个人情况，仅供参考，不能替代医生或营养师的建议。过敏人群请以包装上的致敏物质提示为准。<br><span class="ver">版本 v1.3.0 · 2026-10-07</span></footer>
+  <footer>评分只看配料表本身，不考虑分量和你的个人情况，仅供参考，不能替代医生或营养师的建议。过敏人群请以包装上的致敏物质提示为准。</footer>
 </div>
 
 <script>
@@ -382,7 +382,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
 
   function render(res, opts={}){
     current = {res, opts};
-    const box = $("result"); box.replaceChildren();
+    const box = $("result"); box.replaceChildren(); box.hidden = false;
     const kid = kidOf(res);
     const isKid = tab === "kid";
 
@@ -687,9 +687,6 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
     $("result").scrollIntoView({behavior:"smooth",block:"start"});
   };
 
-  // Example on first load
-  const EXAMPLE = "配料：小麦粉、白砂糖、代可可脂、植物油（棕榈油）、果葡糖浆、乳粉、食用盐、食品添加剂（碳酸氢钠、大豆磷脂、柠檬黄、日落黄）、食用香精";
-  render(localAnalyze(EXAMPLE), {example:true});
   renderHist();
 
   canImages = STANDALONE; updateCaptureUI();

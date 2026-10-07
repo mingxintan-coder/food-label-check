@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="配料表体检">
+<meta name="theme-color" content="#2747a8">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>配料表体检</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one-column phone app — capture card on top, label-order ingredient ledger below, like a store shelf tag */
+:root{
+  --bg:#f4f6f3; --surface:#ffffff; --ink:#18201c; --muted:#5d6a63; --line:#dde3de;
+  --accent:#2747a8; --accent-ink:#ffffff; --accent-soft:#e7ecfa;
+  --good:#2f8a4f; --good-soft:#e3f3e8;
+  --ok:#7b8780; --ok-soft:#eef1ef;
+  --caution:#b7790c; --caution-soft:#fbf0d9;
+  --avoid:#c23a2b; --avoid-soft:#fbe5e1;
+  --sans:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111613; --surface:#1a211d; --ink:#e7ece8; --muted:#9aa69f; --line:#2c3630;
+  --accent:#8ea6ff; --accent-ink:#0f1630; --accent-soft:#1f2848;
+  --good:#5fc27f; --good-soft:#163222; --ok:#9aa69f; --ok-soft:#222a25;
+  --caution:#e7ad42; --caution-soft:#352a12; --avoid:#f07a69; --avoid-soft:#3a1d18;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111613; --surface:#1a211d; --ink:#e7ece8; --muted:#9aa69f; --line:#2c3630;
+  --accent:#8ea6ff; --accent-ink:#0f1630; --accent-soft:#1f2848;
+  --good:#5fc27f; --good-soft:#163222; --ok:#9aa69f; --ok-soft:#222a25;
+  --caution:#e7ad42; --caution-soft:#352a12; --avoid:#f07a69; --avoid-soft:#3a1d18;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding:0 16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:28px;font-weight:900;letter-spacing:.02em;margin:0;text-wrap:balance}
+h1 small{display:block;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:0;margin-top:2px}
+.tag{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.capture{display:flex;flex-direction:column;gap:12px}
+.shoot{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:18px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:18px;font-weight:700;cursor:pointer}
+.shoot svg{width:24px;height:24px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{flex:1 1 auto;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-weight:500;cursor:pointer;text-align:center}
+.btn.primary{background:var(--accent-soft);border-color:transparent;color:var(--accent);font-weight:700}
+.btn:disabled,.shoot:disabled{opacity:.5;cursor:default}
+button:focus-visible,textarea:focus-visible,label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+textarea{width:100%;min-height:110px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.preview{display:flex;gap:12px;align-items:center}
+.preview img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.status{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite ease-in-out}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.dot{animation:none}}
+.err{color:var(--avoid);font-size:14px}
+
+/* result */
+.result{display:flex;flex-direction:column;gap:14px}
+.sample-flag{align-self:flex-start;font-size:12px;font-weight:700;color:var(--caution);background:var(--caution-soft);padding:2px 10px;border-radius:999px}
+.verdict{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.dial{width:96px;height:96px;position:relative}
+.dial svg{width:100%;height:100%;transform:rotate(-90deg)}
+.dial .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:28px;line-height:1}
+.dial .num span{font-size:10px;color:var(--muted);font-family:var(--sans);font-weight:500;margin-top:4px}
+.verdict h2{margin:0;font-size:20px;font-weight:900;text-wrap:balance}
+.verdict .prod{font-size:13px;color:var(--muted)}
+.verdict p{margin:4px 0 0;font-size:14px;min-width:0}
+.counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.count{border-radius:10px;padding:8px 6px;text-align:center}
+.count b{display:block;font-family:var(--mono);font-size:20px;font-variant-numeric:tabular-nums}
+.count small{font-size:12px}
+.c-good{background:var(--good-soft);color:var(--good)}
+.c-ok{background:var(--ok-soft);color:var(--ok)}
+.c-caution{background:var(--caution-soft);color:var(--caution)}
+.c-avoid{background:var(--avoid-soft);color:var(--avoid)}
+.section-label{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin:0}
+.ledger{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ledger li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--line)}
+.ledger li:first-child{border-top:0}
+.ledger .pos{font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:3px;font-variant-numeric:tabular-nums}
+.ledger .pos.top{color:var(--accent);font-weight:700}
+.ledger .body{min-width:0}
+.ledger .name{font-weight:700}
+.ledger .code{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px}
+.ledger .note{font-size:13px;color:var(--muted);margin-top:1px}
+.pill{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.caution{background:var(--caution-soft);color:var(--caution)}
+.pill.avoid{background:var(--avoid-soft);color:var(--avoid)}
+.tips{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.allergen{font-size:14px;background:var(--avoid-soft);color:var(--avoid);padding:8px 12px;border-radius:10px}
+.engine{font-size:12px;color:var(--muted)}
+.history{display:flex;flex-direction:column;gap:6px}
+.hist-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;text-align:left;width:100%}
+.hist-item span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-item b{font-family:var(--mono)}
+.hist-scores{flex:none;white-space:nowrap}
+.hist-scores small{color:var(--muted);font-size:11px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--bg);border:1px solid var(--line);border-radius:12px}
+.tab-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 8px;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-weight:700;cursor:pointer}
+.tab-btn[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tab-score{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.kid-basis{margin:0;font-size:12.5px;color:var(--muted);background:var(--accent-soft);padding:8px 12px;border-radius:10px}
+footer{font-size:12px;color:var(--muted);line-height:1.6}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>配料表体检<small>拍一下包装背面，看看它到底放了什么</small></h1>
+    <span class="tag">GB 7718 · 按含量降序</span>
+  </header>
+
+  <section class="card capture" aria-label="扫描配料表">
+    <label class="shoot" id="shootLabel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      拍配料表
+      <input type="file" id="camInput" accept="image/*" capture="environment">
+    </label>
+    <div class="row">
+      <label class="btn" id="albumLabel">从相册选<input type="file" id="albumInput" accept="image/*"></label>
+      <button class="btn" id="toggleText" type="button">手动输入文字</button>
+    </div>
+    <div id="textBox" hidden>
+      <textarea id="labelText" placeholder="把配料表文字粘贴到这里，例如：小麦粉、白砂糖、植物油、鸡蛋……"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="analyzeText" type="button">分析这段配料</button>
+      </div>
+    </div>
+    <div class="preview" id="preview" hidden>
+      <img id="previewImg" alt="刚拍的配料表">
+      <div class="status" id="status"></div>
+    </div>
+    <p class="err" id="err" hidden></p>
+    <p class="hint" id="capHint">拍照时让配料表填满画面、光线均匀，文字越清楚识别越准。</p>
+  </section>
+
+  <section class="card result" id="result" aria-live="polite"></section>
+
+  <section class="history" id="historyWrap" hidden>
+    <p class="section-label">最近扫描</p>
+    <div class="history" id="history"></div>
+  </section>
+
+  <footer>评分只看配料表本身，不考虑分量和你的个人情况，仅供参考，不能替代医生或营养师的建议。过敏人群请以包装上的致敏物质提示为准。</footer>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const STANDALONE = !window.claude;
+  const LEVELS = {
+    good:{label:"推荐",cls:"good"}, ok:{label:"一般",cls:"ok"},
+    caution:{label:"注意",cls:"caution"}, avoid:{label:"少吃",cls:"avoid"}
+  };
+
+  // ---- Built-in rules (used offline and for pasted text) ----
+  // [keywords, level, display type, note, code]
+  const RULES = [
+    [["部分氢化","氢化植物油","氢化油","hydrogenated"],"avoid","油脂","可能含反式脂肪，增加心血管风险",""],
+    [["人造奶油","人造黄油","起酥油","margarine","shortening"],"avoid","油脂","常由氢化工艺制成，可能含反式脂肪",""],
+    [["植脂末","奶精","非乳植脂","creamer"],"avoid","油脂","多为氢化油+糖浆，几乎没有营养",""],
+    [["代可可脂","cocoa butter substitute"],"avoid","油脂","不是真巧克力，可能含反式脂肪",""],
+    [["果葡糖浆","高果糖","high fructose","hfcs"],"avoid","添加糖","游离果糖高，过量与脂肪肝相关",""],
+    [["亚硝酸钠","硝酸钠","sodium nitrite"],"avoid","防腐剂","加工肉常用，长期多吃与肠癌风险相关","INS 250"],
+    [["白砂糖","砂糖","绵白糖","蔗糖","冰糖","红糖","sugar","sucrose"],"caution","添加糖","添加糖，每天建议不超过 25 克",""],
+    [["葡萄糖浆","麦芽糖浆","玉米糖浆","糖浆","麦芽糖","葡萄糖","蜂蜜","syrup","dextrose","glucose"],"caution","添加糖","也是添加糖，升血糖快",""],
+    [["麦芽糊精","maltodextrin"],"caution","碳水","升糖指数很高的精制碳水",""],
+    [["棕榈油","棕榈仁油","palm"],"caution","油脂","饱和脂肪比例高",""],
+    [["精炼植物油","植物油","大豆油","玉米油","葵花籽油","菜籽油","vegetable oil"],"caution","油脂","油脂本身没问题，排在前面说明很油",""],
+    [["奶油","黄油","butter","cream"],"caution","油脂","饱和脂肪较高，适量",""],
+    [["食用盐","食盐","盐","salt"],"caution","调味","排位靠前说明偏咸，每天盐不超过 5 克",""],
+    [["阿斯巴甜","aspartame"],"caution","甜味剂","代糖，苯丙酮尿症患者禁用","INS 951"],
+    [["安赛蜜","乙酰磺胺酸钾","acesulfame"],"caution","甜味剂","代糖，合规使用安全，但会养成嗜甜","INS 950"],
+    [["三氯蔗糖","sucralose"],"caution","甜味剂","代糖，合规使用安全，但会养成嗜甜","INS 955"],
+    [["糖精钠","saccharin"],"caution","甜味剂","较老的代糖，儿童食品不宜","INS 954"],
+    [["甜蜜素","环己基氨基磺酸钠","cyclamate"],"caution","甜味剂","代糖，常见于超标通报","INS 952"],
+    [["赤藓糖醇","erythritol"],"ok","甜味剂","几乎不升血糖，多吃可能腹胀","INS 968"],
+    [["木糖醇","麦芽糖醇","山梨糖醇","xylitol","maltitol","sorbitol"],"ok","甜味剂","糖醇类，多吃可能腹泻",""],
+    [["甜菊糖","甜菊","stevia","罗汉果"],"ok","甜味剂","天然来源的代糖",""],
+    [["柠檬黄","tartrazine"],"caution","色素","人工合成色素，部分儿童可能多动","INS 102"],
+    [["日落黄","sunset yellow"],"caution","色素","人工合成色素","INS 110"],
+    [["胭脂红","ponceau"],"caution","色素","人工合成色素","INS 124"],
+    [["诱惑红","allura"],"caution","色素","人工合成色素","INS 129"],
+    [["亮蓝","brilliant blue"],"caution","色素","人工合成色素","INS 133"],
+    [["苋菜红","amaranth"],"caution","色素","人工合成色素","INS 123"],
+    [["焦糖色","caramel color"],"caution","色素","部分工艺会产生 4-甲基咪唑","INS 150"],
+    [["苯甲酸钠","苯甲酸","sodium benzoate"],"caution","防腐剂","与维生素 C 同在时可能生成少量苯","INS 211"],
+    [["脱氢乙酸钠","dehydroacetate"],"caution","防腐剂","国标已收紧其使用范围","INS 266"],
+    [["山梨酸钾","山梨酸","sorbate"],"ok","防腐剂","相对安全的防腐剂","INS 202"],
+    [["tbhq","特丁基对苯二酚"],"caution","抗氧化剂","合成抗氧化剂，常见于油炸食品","INS 319"],
+    [["bha","bht","丁基羟基茴香醚","二丁基羟基甲苯"],"caution","抗氧化剂","合成抗氧化剂","INS 320/321"],
+    [["磷酸盐","焦磷酸","三聚磷酸","磷酸二氢","磷酸氢二","phosphate"],"caution","添加剂","磷摄入过多影响钙吸收",""],
+    [["谷氨酸钠","味精","msg","呈味核苷酸","i+g","5'-"],"ok","增味剂","安全，但常伴随高钠",""],
+    [["食用香精","香精","香料","flavor","flavour"],"caution","香精","提供味道但没有营养，常用来掩盖真材实料不足",""],
+    [["卡拉胶","carrageenan"],"ok","增稠剂","常用增稠剂","INS 407"],
+    [["黄原胶","瓜尔胶","果胶","阿拉伯胶","明胶","xanthan","guar","pectin"],"ok","增稠剂","常用增稠剂，安全",""],
+    [["单硬脂酸甘油酯","单甘酯","蔗糖脂肪酸酯","大豆磷脂","卵磷脂","lecithin","mono"],"ok","乳化剂","常用乳化剂",""],
+    [["碳酸氢钠","碳酸氢铵","小苏打","泡打粉","baking"],"ok","膨松剂","常用膨松剂",""],
+    [["乳酸菌","双歧杆菌","益生菌","嗜热链球菌","保加利亚乳杆菌","probiotic"],"good","益生菌","对肠道有益",""],
+    [["柠檬酸","苹果酸","乳酸","citric"],"ok","酸度调节剂","常用酸味剂，安全",""],
+    [["乙基麦芽酚","ethyl maltol"],"ok","增香剂","常见增香剂",""],
+    [["改性淀粉","变性淀粉","醋酸酯淀粉","modified starch"],"ok","增稠剂","加工淀粉，营养价值低",""],
+    [["全麦","全谷物","whole wheat","whole grain"],"good","谷物","保留了麸皮和胚芽，膳食纤维多",""],
+    [["燕麦","oat"],"good","谷物","富含 β-葡聚糖",""],
+    [["糙米","黑米","小米","荞麦","藜麦","杂粮","quinoa","buckwheat"],"good","谷物","粗粮，纤维和矿物质更多",""],
+    [["生牛乳","鲜牛乳","牛乳","牛奶","全脂乳粉","脱脂乳粉","乳粉","milk"],"good","乳制品","优质蛋白和钙",""],
+    [["鸡蛋","全蛋","蛋黄","蛋清","egg"],"good","蛋","优质蛋白",""],
+    [["大豆","黄豆","豆粉","鹰嘴豆","红豆","绿豆","soy","bean"],"good","豆类","植物蛋白和纤维",""],
+    [["花生","杏仁","核桃","腰果","榛子","开心果","坚果","芝麻","nut","almond","peanut"],"good","坚果","好脂肪，注意过敏",""],
+    [["橄榄油","olive oil"],"good","油脂","单不饱和脂肪为主",""],
+    [["菊粉","低聚果糖","抗性糊精","膳食纤维","inulin","fiber"],"good","膳食纤维","益生元，帮助肠道",""],
+    [["维生素","vitamin","钙","铁","锌"],"good","营养强化","营养强化剂",""],
+    [["可可液块","可可粉","cocoa"],"good","可可","真可可，含多酚",""],
+    [["蔬菜","番茄","胡萝卜","菠菜","南瓜","水果","苹果","香蕉","草莓","蓝莓","vegetable","fruit"],"good","果蔬","天然食材",""],
+    [["鸡肉","猪肉","牛肉","鱼","虾","chicken","pork","beef","fish"],"ok","肉类","蛋白质来源，看排位和加工方式",""],
+    [["小麦粉","面粉","wheat flour"],"ok","谷物","精制面粉，纤维少",""],
+    [["淀粉","starch","大米","米粉"],"ok","碳水","普通碳水",""],
+    [["饮用水","水","water"],"ok","水","",""]
+  ];
+  const ALLERGEN_KEYS = [["小麦","麸质","wheat","gluten"],["牛奶","牛乳","乳粉","奶粉","乳清","奶油","黄油","milk"],["鸡蛋","蛋黄","蛋清","全蛋","egg"],["大豆","黄豆","soy"],["花生","peanut"],["杏仁","核桃","腰果","榛子","开心果","坚果","nut"],["鱼","fish"],["虾","蟹","贝","shrimp","crab"],["芝麻","sesame"]];
+  const ALLERGEN_NAMES = ["含麸质谷物","乳","蛋","大豆","花生","树坚果","鱼","甲壳类","芝麻"];
+
+  function splitIngredients(text){
+    let t = text.replace(/\s+/g," ").trim();
+    const m = t.match(/(配料表?|原料|ingredients)\s*[:：]?/i);
+    if (m) t = t.slice(m.index + m[0].length);
+    t = t.split(/(产品标准|执行标准|生产日期|保质期|贮存条件|营养成分|致敏物质|过敏原|净含量)/)[0];
+    return t.split(/[,，、;；()（）\[\]【】{}]|\s{2,}|\n/)
+      .map(s => s.replace(/^[\s:：.。*]+|[\s.。*]+$/g,"").replace(/[\d.]+\s*%$/,"").trim())
+      .filter(s => s && s.length < 40 && !/^(含|食品添加剂|添加剂)$/.test(s))
+      .map(s => s.replace(/^(食品添加剂|含)/,""));
+  }
+  function matchRule(name){
+    const n = name.toLowerCase();
+    for (const r of RULES) if (r[0].some(k => n.includes(k.toLowerCase()))) return r;
+    return null;
+  }
+  function localAnalyze(text){
+    const names = splitIngredients(text);
+    if (!names.length) return null;
+    const ingredients = names.map(name => {
+      const r = matchRule(name);
+      return r ? {name, level:r[1], type:r[2], note:r[3], code:r[4]}
+               : {name, level:"ok", type:"其他", note:"", code:""};
+    });
+    let score = 85, additives = 0;
+    ingredients.forEach((g,i) => {
+      if (g.level==="avoid") score -= 14;
+      if (g.level==="caution") score -= 5;
+      if (g.level==="good") score += i < 3 ? 6 : 2;
+      if (i < 3 && (g.type==="添加糖" || g.type==="油脂") && g.level!=="good") score -= 7;
+      if (["色素","防腐剂","甜味剂","香精","抗氧化剂","增稠剂","乳化剂","增味剂","酸度调节剂","增香剂","添加剂","膨松剂"].includes(g.type)) additives++;
+    });
+    if (additives > 5) score -= 5;
+    if (ingredients.length <= 3 && !ingredients.some(g=>g.level==="avoid")) score += 5;
+    score = Math.max(5, Math.min(98, Math.round(score)));
+    const joined = names.join(" ").toLowerCase();
+    const allergens = ALLERGEN_KEYS.map((ks,i)=> ks.some(k=>joined.includes(k)) ? ALLERGEN_NAMES[i] : null).filter(Boolean);
+    const top = ingredients.slice(0,3);
+    const tips = [];
+    if (top.some(g=>g.type==="添加糖")) tips.push("糖排在前三位，属于高糖食品，偶尔吃，别当正餐。");
+    if (top.some(g=>g.type==="油脂" && g.level!=="good")) tips.push("油脂排位靠前，热量密度高，注意分量。");
+    if (ingredients.some(g=>g.level==="avoid")) tips.push("含有建议少吃的成分，可以找同类里配料更干净的替代品。");
+    if (additives > 5) tips.push(`添加剂约 ${additives} 种，偏多，说明加工程度高。`);
+    if (!tips.length) tips.push("配料比较干净，再看看营养成分表里的钠和能量。");
+    return {product:null, ingredients, score, verdict:verdictFor(score), summary:"", tips:tips.slice(0,3), allergens, engine:"local"};
+  }
+  // ---- 4 岁儿童评估 ----
+  // 依据《中国学龄前儿童膳食指南（2022）》：4–5 岁每天盐 <3 g，添加糖最好 <25 g；
+  // 不建议合成色素、人工甜味剂、咖啡因、酒精；注意噎呛。
+  const KID_LEVELS = {
+    good:{label:"适合",cls:"good"}, ok:{label:"可以",cls:"ok"},
+    caution:{label:"少给",cls:"caution"}, avoid:{label:"不建议",cls:"avoid"}
+  };
+  const KID_RULES = [
+    [["酒石酸"],"ok","常用酸味剂"],
+    [["咖啡","caffeine","coffee","茶粉","茶叶","抹茶","红茶","绿茶","乌龙","可乐","瓜拉纳"],"avoid","含咖啡因或提神成分，不适合儿童"],
+    [["酒精","料酒","米酒","酒酿","朗姆","白兰地","rum","alcohol","wine","酒"],"avoid","含酒精，不适合儿童"],
+    [["阿斯巴甜","安赛蜜","乙酰磺胺酸钾","三氯蔗糖","糖精","甜蜜素","环己基氨基磺酸钠","纽甜","aspartame","acesulfame","sucralose","saccharin","cyclamate"],"avoid","人工甜味剂，不建议给学龄前儿童，也容易养成嗜甜"],
+    [["赤藓糖醇","木糖醇","麦芽糖醇","山梨糖醇","异麦芽酮糖醇","erythritol","xylitol","maltitol","sorbitol"],"caution","糖醇，孩子肠胃敏感，多吃容易腹泻"],
+    [["甜菊","罗汉果","stevia"],"caution","代糖，孩子最好从小习惯不太甜的口味"],
+    [["焦糖色","caramel color"],"caution","色素，能少则少"],
+    [["柠檬黄","日落黄","胭脂红","诱惑红","亮蓝","苋菜红","靛蓝","赤藓红","新红","tartrazine","sunset yellow","ponceau","allura","brilliant blue"],"avoid","合成色素，研究提示可能与部分儿童注意力不集中、多动有关"],
+    [["亚硝酸","硝酸钠","nitrite"],"avoid","腌腊和加工肉制品常用，孩子尽量不吃"],
+    [["氢化","人造奶油","人造黄油","起酥油","植脂末","奶精","非乳植脂","代可可脂","margarine","shortening","hydrogenated","creamer"],"avoid","可能含反式脂肪，儿童更应避免"],
+    [["果葡糖浆","高果糖","high fructose","hfcs"],"avoid","游离果糖高，孩子尽量少碰含它的饮料零食"],
+    [["魔芋","konjac"],"caution","魔芋果冻容易噎住，切小块，别让孩子吸着吃"],
+    [["花生油","核桃油","芝麻油","香油"],"ok","普通食用油"],
+    [["花生","杏仁","核桃","腰果","榛子","开心果","坚果","peanut","almond","nut"],"good","营养好，但整粒容易呛，切碎或磨成酱再给；注意过敏"],
+    [["辣椒","花椒","胡椒","芥末","chili","pepper","辣"],"caution","辛辣刺激，孩子少吃"],
+    [["味精","谷氨酸钠","呈味核苷酸","鸡精","msg"],"caution","孩子口味宜清淡，增味剂常伴随高钠"],
+    [["蜂蜜","honey"],"caution","1 岁以上可以吃，但也算添加糖"],
+    [["香精","香料","flavor","flavour"],"caution","香精让零食更诱人，挑真材实料的"],
+    [["tbhq","bha","bht","特丁基","丁基羟基","二丁基"],"caution","合成抗氧化剂，油炸零食常见，少吃"],
+    [["苯甲酸","脱氢乙酸","dehydroacetate","benzoate"],"caution","防腐剂，孩子少吃"],
+    [["磷酸盐","焦磷酸","三聚磷酸","phosphate"],"caution","磷多影响钙吸收，孩子长骨头时更要注意"]
+  ];
+  const ADDITIVE_TYPES = ["色素","防腐剂","甜味剂","香精","抗氧化剂","增稠剂","乳化剂","增味剂","酸度调节剂","增香剂","添加剂","膨松剂"];
+  function kidItem(g, i){
+    const n = g.name.toLowerCase();
+    for (const [keys, level, note] of KID_RULES) if (keys.some(k => n.includes(k))) return {level, note};
+    const t = g.type || "";
+    if (t.includes("色素")) return {level:"avoid", note:"色素，孩子的零食最好不含"};
+    if (t.includes("甜味剂")) return {level:"avoid", note:"甜味剂，不建议给学龄前儿童"};
+    if (t.includes("糖")) return i < 3 ? {level:"avoid", note:"糖排在前面，学龄前儿童添加糖每天最好不超过 25 克"}
+                                      : {level:"caution", note:"添加糖，学龄前儿童每天最好不超过 25 克"};
+    if (/(^|[^a-z])salt/.test(n) || n.includes("盐") && !n.includes("盐酸"))
+      return i < 3 ? {level:"avoid", note:"盐排位靠前，太咸；4–5 岁每天盐不超过 3 克"}
+                   : {level:"caution", note:"4–5 岁每天盐不超过 3 克"};
+    if (t.includes("油") && g.level !== "good" && i < 3) return {level:"caution", note:"油多，热量高，孩子少吃"};
+    return {level:g.level, note:g.note};
+  }
+  function kidAnalyze(ingredients){
+    const items = ingredients.map(kidItem);
+    let score = 85, additives = 0;
+    items.forEach((k,i) => {
+      if (k.level==="avoid") score -= 18;
+      if (k.level==="caution") score -= 6;
+      if (k.level==="good") score += i < 3 ? 5 : 2;
+      if (ADDITIVE_TYPES.some(t => (ingredients[i].type||"").includes(t))) additives++;
+    });
+    if (additives > 3) score -= 6;
+    score = Math.max(5, Math.min(98, Math.round(score)));
+    const names = ingredients.map(g => g.name.toLowerCase());
+    const has = keys => names.some(n => keys.some(k => n.includes(k)));
+    const tips = [];
+    if (items.slice(0,3).some((k,i)=>k.level==="avoid" && (ingredients[i].type||"").includes("糖")))
+      tips.push("糖排在前三位，当零食偶尔给一小份，别当早餐或正餐。");
+    if (items.some(k=>/咖啡因|酒精/.test(k.note))) tips.push("含咖啡因或酒精，不要给孩子吃。");
+    if (items.some((k,i)=>k.level==="avoid" && /色素/.test(k.note + (ingredients[i].type||"")))) tips.push("含合成色素，可以换成不加色素的同类产品。");
+    if (items.some(k=>k.note.startsWith("人工甜味剂"))) tips.push("含人工甜味剂，学龄前孩子不建议吃。");
+    if (items.some(k=>k.note.includes("盐排位"))) tips.push("偏咸，这一天其他饭菜要少放盐。");
+    if (has(["花生","杏仁","核桃","腰果","榛子","开心果","坚果"]) ) tips.push("整粒坚果容易呛，切碎或磨成酱再给。");
+    if (has(["魔芋"])) tips.push("果冻类要切成小块，大人看着吃。");
+    if (!tips.length) tips.push(score >= 75 ? "配料干净，可以作为孩子的加餐。" : "可以偶尔吃，注意分量，别替代正餐。");
+    const verdict = score>=75 ? "推荐给孩子吃" : score>=55 ? "可以偶尔吃" : score>=35 ? "少给，偶尔一点" : "不推荐给孩子";
+    return {score, verdict, summary:"", tips:tips.slice(0,3), items};
+  }
+
+  function verdictFor(s){
+    return s>=80 ? "可以放心吃" : s>=60 ? "还行，适量" : s>=40 ? "偶尔吃吃" : "尽量少吃";
+  }
+  function scoreColor(s){
+    return s>=80 ? "var(--good)" : s>=60 ? "var(--ok)" : s>=40 ? "var(--caution)" : "var(--avoid)";
+  }
+
+  // ---- Rendering ----
+  function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+  let tab = "adult";
+  try{ tab = localStorage.getItem("lc-tab") === "kid" ? "kid" : "adult"; }catch{}
+  let current = null;
+
+  function kidOf(res){
+    if (!res.kid || !Array.isArray(res.kid.items) || res.kid.items.length !== res.ingredients.length)
+      res.kid = kidAnalyze(res.ingredients);
+    return res.kid;
+  }
+
+  function render(res, opts={}){
+    current = {res, opts};
+    const box = $("result"); box.replaceChildren();
+    const kid = kidOf(res);
+    const isKid = tab === "kid";
+
+    const tabs = el("div","tabs"); tabs.setAttribute("role","tablist");
+    [["adult","成人"],["kid","4 岁儿童"]].forEach(([key,label]) => {
+      const b = el("button","tab-btn", label); b.type = "button";
+      b.setAttribute("role","tab"); b.setAttribute("aria-selected", String(tab===key));
+      const sc = key==="kid" ? kid.score : res.score;
+      const s = el("span","tab-score", String(sc)); s.style.color = scoreColor(sc); b.append(s);
+      b.onclick = () => { tab = key; try{ localStorage.setItem("lc-tab", key); }catch{} render(current.res, current.opts); };
+      tabs.append(b);
+    });
+    box.append(tabs);
+
+    if (opts.example) box.append(el("span","sample-flag","示例：某款夹心饼干"));
+    const score = isKid ? kid.score : res.score;
+    const L = isKid ? KID_LEVELS : LEVELS;
+    const levelAt = i => isKid ? kid.items[i].level : res.ingredients[i].level;
+    const noteAt = i => isKid ? kid.items[i].note : res.ingredients[i].note;
+
+    const v = el("div","verdict");
+    const dial = el("div","dial");
+    const C = 2*Math.PI*42, pct = score/100;
+    dial.innerHTML = `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="50" cy="50" r="42" fill="none" stroke="${scoreColor(score)}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(C*pct).toFixed(1)} ${C.toFixed(1)}"/></svg>`;
+    const num = el("div","num", String(score)); num.style.color = scoreColor(score);
+    num.append(el("span",null, isKid ? "儿童分" : "健康分")); dial.append(num);
+    const txt = el("div"); txt.style.minWidth="0";
+    if (res.product) txt.append(el("div","prod",res.product));
+    txt.append(el("h2",null, isKid ? kid.verdict : (res.verdict || verdictFor(score))));
+    const summary = isKid ? kid.summary : res.summary;
+    if (summary) txt.append(el("p",null,summary));
+    v.append(dial, txt); box.append(v);
+
+    if (isKid) box.append(el("p","kid-basis","按 4–5 岁标准：盐每天 <3 克，添加糖最好 <25 克；不建议合成色素、人工甜味剂、咖啡因和酒精；整粒坚果和果冻注意噎呛。"));
+
+    const counts = el("div","counts");
+    ["good","ok","caution","avoid"].forEach(k => {
+      const c = el("div","count c-"+k);
+      const n = res.ingredients.filter((_,i)=>levelAt(i)===k).length;
+      c.append(el("b",null,String(n)), el("small",null,L[k].label));
+      counts.append(c);
+    });
+    box.append(counts);
+
+    if (res.allergens && res.allergens.length) box.append(el("div","allergen","可能含致敏物质：" + res.allergens.join("、")));
+
+    box.append(el("p","section-label","配料逐项 · 越靠前含量越多"));
+    const ul = el("ul","ledger");
+    res.ingredients.forEach((g,i) => {
+      const li = el("li");
+      li.append(el("span","pos"+(i<3?" top":""), String(i+1).padStart(2,"0")));
+      const b = el("div","body");
+      const nm = el("div"); nm.append(el("span","name",g.name)); if (g.code) nm.append(el("span","code",g.code));
+      b.append(nm);
+      const note = [g.type && g.type!=="其他" ? g.type : "", noteAt(i)].filter(Boolean).join(" · ");
+      if (note) b.append(el("div","note",note));
+      const lv = L[levelAt(i)] || L.ok;
+      li.append(b, el("span","pill "+lv.cls, lv.label));
+      ul.append(li);
+    });
+    box.append(ul);
+
+    const tips = isKid ? kid.tips : res.tips;
+    if (tips && tips.length){
+      box.append(el("p","section-label", isKid ? "给孩子吃的建议" : "建议"));
+      const ol = el("ul","tips"); tips.forEach(t=>ol.append(el("li",null,t))); box.append(ol);
+    }
+    box.append(el("div","engine", res.engine==="claude" ? "由 Claude 识别和点评" : "由内置规则库分析（约 60 类常见配料）"));
+    if (res.engine==="local" && sampleFn && !opts.example && opts.text){
+      const deep = el("button","btn primary","让 Claude 深入点评"); deep.type="button";
+      deep.onclick = () => analyzeWithClaude({text: opts.text});
+      box.append(deep);
+    }
+  }
+
+  // ---- History (per-viewer, this browser only) ----
+  function loadHist(){ try{ return JSON.parse(localStorage.getItem("lc-history")||"[]"); }catch{ return []; } }
+  function saveHist(res){
+    try{
+      const h = loadHist();
+      h.unshift({...res, at: Date.now()});
+      localStorage.setItem("lc-history", JSON.stringify(h.slice(0,10)));
+    }catch{}
+    renderHist();
+  }
+  function renderHist(){
+    const h = loadHist(); const box = $("history"); box.replaceChildren();
+    $("historyWrap").hidden = !h.length;
+    h.forEach(r => {
+      const b = el("button","hist-item"); b.type="button";
+      const name = r.product || r.ingredients.slice(0,3).map(g=>g.name).join("、");
+      const d = new Date(r.at);
+      b.append(el("span",null,`${d.getMonth()+1}/${d.getDate()}  ${name}`));
+      const k = kidOf(r);
+      const sc = el("span","hist-scores");
+      const a = el("b",null,String(r.score)); a.style.color = scoreColor(r.score);
+      const c = el("b",null,String(k.score)); c.style.color = scoreColor(k.score);
+      sc.append(el("small",null,"成人 "), a, el("small",null," 儿童 "), c);
+      b.append(sc);
+      b.onclick = () => { render(r); $("result").scrollIntoView({behavior:"smooth",block:"start"}); };
+      box.append(b);
+    });
+  }
+
+  // ---- Claude ----
+  let sampleFn = null, canImages = false, ctl = null;
+  const PROMPT = `你是一名注册营养师，帮普通消费者看食品包装上的配料表。
+任务：读出配料表，按原文顺序（中国 GB 7718 规定配料按含量从多到少排列）列出每一种配料，并逐项评价是否健康。
+评价等级 level 只能是：
+- "good"：对健康有益的天然食材（全谷物、奶、蛋、豆、坚果、果蔬、膳食纤维等）
+- "ok"：普通、无明显问题（精制面粉、水、安全的常用添加剂等）
+- "caution"：需要注意（添加糖、大量油脂、盐、人工色素、甜味剂、香精、部分防腐剂等）
+- "avoid"：建议少吃（氢化油/反式脂肪、植脂末、代可可脂、果葡糖浆、亚硝酸盐等）
+配料靠前的糖、油、盐要更严格。score 为 0-100 的整体健康分（80+ 放心吃，60-79 适量，40-59 偶尔吃，<40 尽量少吃）。
+复合配料括号里的子配料也要拆开列出。添加剂若知道 INS 编号，写在 code 里（如 "INS 102"），不知道就留空字符串。
+另外，单独从「给 4 岁儿童吃」的角度再评一遍（依据中国学龄前儿童膳食指南：4–5 岁盐每天 <3 克、添加糖最好 <25 克；不建议合成色素、人工甜味剂、咖啡因、酒精；注意整粒坚果、果冻等噎呛风险）：
+每个配料给出 kidLevel（"good" 适合 / "ok" 可以 / "caution" 少给 / "avoid" 不建议）和 kidNote（不超过25字，针对孩子的说明），
+再给出 kid 对象：score（0-100，75+ 推荐，55-74 偶尔吃，35-54 少给，<35 不推荐）、verdict（不超过10字，如「不推荐给孩子」）、summary（不超过60字）、tips（最多3条给家长的具体建议）。
+如果图片里看不清或没有配料表，readable 为 false，ingredients 为空数组，summary 说明原因。
+只回复一个 JSON 对象，全部用简体中文，格式：
+{"readable":true,"product":"产品名或null","ingredients":[{"name":"白砂糖","level":"caution","type":"添加糖","note":"不超过25字的说明","code":"","kidLevel":"caution","kidNote":"孩子添加糖每天最好不超过25克"}],"score":55,"verdict":"不超过10个字的结论","summary":"不超过60字的整体点评","tips":["最多3条具体建议"],"allergens":["包装或配料中可见的致敏物质"],"kid":{"score":40,"verdict":"少给，偶尔一点","summary":"…","tips":["…"]}}`;
+
+  async function analyzeWithClaude({image, text}){
+    if (!sampleFn) return;
+    ctl?.abort(); ctl = new AbortController();
+    setBusy(true, image ? "Claude 正在读配料表…" : "Claude 正在点评…");
+    try{
+      const input = image ? PROMPT + "\n\n图片是一张食品包装的配料表照片。" : PROMPT + "\n\n配料表文字如下：\n" + text.slice(0,4000);
+      const opts = {signal: ctl.signal};
+      if (image) opts.images = image;
+      const r = await sampleFn.json(input, opts);
+      if (!r || !Array.isArray(r.ingredients)) throw {code:"invalid_json"};
+      if (r.readable === false || !r.ingredients.length){
+        showErr(r.summary || "没认出配料表，换个角度再拍一张，或者手动输入文字。");
+        return;
+      }
+      const res = {
+        product: r.product && r.product!=="null" ? String(r.product) : null,
+        ingredients: r.ingredients.map(g => ({name:String(g.name||""), level: LEVELS[g.level] ? g.level : "ok", type:String(g.type||""), note:String(g.note||""), code:String(g.code||"")})).filter(g=>g.name),
+        score: Math.max(0, Math.min(100, Math.round(Number(r.score)||0))),
+        verdict: String(r.verdict||""), summary: String(r.summary||""),
+        tips: Array.isArray(r.tips) ? r.tips.map(String).slice(0,3) : [],
+        allergens: Array.isArray(r.allergens) ? r.allergens.map(String) : [],
+        engine: "claude"
+      };
+      const raw = r.ingredients.filter(g => g && g.name);
+      const local = kidAnalyze(res.ingredients);
+      const kidScore = Number(r.kid && r.kid.score);
+      res.kid = {
+        score: Number.isFinite(kidScore) ? Math.max(0, Math.min(100, Math.round(kidScore))) : local.score,
+        verdict: String(r.kid && r.kid.verdict || local.verdict),
+        summary: String(r.kid && r.kid.summary || ""),
+        tips: r.kid && Array.isArray(r.kid.tips) && r.kid.tips.length ? r.kid.tips.map(String).slice(0,3) : local.tips,
+        items: res.ingredients.map((g,i) => {
+          const src = raw[i] || {};
+          return KID_LEVELS[src.kidLevel] ? {level: src.kidLevel, note: String(src.kidNote || "")} : local.items[i];
+        })
+      };
+      render(res); saveHist(res); hideErr();
+      $("result").scrollIntoView({behavior:"smooth",block:"start"});
+    }catch(e){
+      const map = {
+        cancelled: null,
+        not_granted: "需要允许这个页面使用 Claude 才能识别照片。你也可以手动输入配料文字。",
+        rate_limited: "请求太频繁或额度用完了，稍后再试。",
+        image_rejected: "这张图片用不了，换一张 JPG 或 PNG 试试。",
+        images_unavailable: "当前环境不能识别图片，请手动输入配料文字。",
+        invalid_json: "识别结果不完整，再点一次试试。",
+        refused: "这张图片无法分析，换一张试试。",
+        session_expired: "登录已过期，重新登录后再试。"
+      };
+      const msg = e && e.code in map ? map[e.code] : "网络或服务出了点问题，再试一次。";
+      if (msg) showErr(msg);
+      if (e && (e.code==="not_granted" || e.code==="images_unavailable")) { canImages = false; updateCaptureUI(); }
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  // ---- UI wiring ----
+  function setBusy(on, msg){
+    $("status").replaceChildren();
+    if (on){ $("status").append(el("span","dot"), el("span",null,msg)); }
+    else { $("status").textContent = $("previewImg").src ? "完成" : ""; }
+    ["camInput","albumInput","analyzeText"].forEach(id=>$(id).disabled = on);
+    $("shootLabel").style.opacity = on ? .6 : "";
+  }
+  function showErr(m){ $("err").textContent = m; $("err").hidden = false; }
+  function hideErr(){ $("err").hidden = true; }
+  function updateCaptureUI(){
+    $("shootLabel").hidden = !canImages;
+    $("albumLabel").hidden = !canImages;
+    if (STANDALONE){
+      $("toggleText").hidden = false;
+      $("capHint").textContent = "照片在你手机上本地识别，不上传。第一次要下载约 20MB 中文识别模型，之后会快很多。识别完可以修改文字再分析。";
+    } else if (!canImages){
+      $("textBox").hidden = false; $("toggleText").hidden = true;
+      $("capHint").textContent = "iPhone 用法：打开相机对准配料表，点右下角的文字图标（实况文本），全选并拷贝，再粘贴到上面的框里点分析。";
+    } else {
+      $("toggleText").hidden = false;
+      $("capHint").textContent = "拍照时让配料表填满画面、光线均匀，文字越清楚识别越准。";
+    }
+  }
+  function onPick(ev){
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    hideErr();
+    const url = URL.createObjectURL(f);
+    $("previewImg").src = url; $("preview").hidden = false;
+    if (STANDALONE) localOCR(f); else analyzeWithClaude({image: f});
+  }
+
+  // ---- 独立网页版：浏览器内 OCR（Tesseract.js） ----
+  let ocrWorker = null;
+  function loadScript(src){
+    return new Promise((ok, fail) => {
+      if (window.Tesseract) return ok();
+      const sc = document.createElement("script"); sc.src = src; sc.onload = ok; sc.onerror = fail;
+      document.head.append(sc);
+    });
+  }
+  async function localOCR(file){
+    setBusy(true, "正在加载识别模型…");
+    try{
+      await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+      if (!ocrWorker){
+        ocrWorker = await Tesseract.createWorker("chi_sim+eng", 1, {
+          logger: m => {
+            if (m.status === "recognizing text") setBusy(true, `正在识别文字… ${Math.round(m.progress*100)}%`);
+            else if (/load|download/i.test(m.status)) setBusy(true, "正在下载中文识别模型…" + (m.progress ? ` ${Math.round(m.progress*100)}%` : ""));
+          }
+        });
+      }
+      setBusy(true, "正在识别文字…");
+      const { data } = await ocrWorker.recognize(file);
+      const text = (data.text || "")
+        .replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+(?=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, "$1")
+        .replace(/\n+/g, "").trim();
+      $("labelText").value = text; $("textBox").hidden = false;
+      const res = text ? localAnalyze(text) : null;
+      if (!res){ showErr("没识别出配料。让配料表填满画面、光线均匀再拍一次，或者直接在框里输入文字。"); return; }
+      render(res, {text}); saveHist(res); hideErr();
+      $("result").scrollIntoView({behavior:"smooth",block:"start"});
+    }catch(e){
+      showErr("识别失败，可能是网络问题。可以再试一次，或者直接在框里输入文字。");
+    }finally{
+      setBusy(false);
+    }
+  }
+  $("camInput").addEventListener("change", onPick);
+  $("albumInput").addEventListener("change", onPick);
+  $("toggleText").onclick = () => { $("textBox").hidden = !$("textBox").hidden; if(!$("textBox").hidden) $("labelText").focus(); };
+  $("analyzeText").onclick = () => {
+    const t = $("labelText").value.trim();
+    if (!t){ showErr("先输入配料表文字。"); return; }
+    hideErr();
+    const res = localAnalyze(t);
+    if (!res){ showErr("没找到配料，检查一下文字。"); return; }
+    render(res, {text: t}); saveHist(res);
+    $("result").scrollIntoView({behavior:"smooth",block:"start"});
+  };
+
+  // Example on first load
+  const EXAMPLE = "配料：小麦粉、白砂糖、代可可脂、植物油（棕榈油）、果葡糖浆、乳粉、食用盐、食品添加剂（碳酸氢钠、大豆磷脂、柠檬黄、日落黄）、食用香精";
+  render(localAnalyze(EXAMPLE), {example:true});
+  renderHist();
+
+  canImages = STANDALONE; updateCaptureUI();
+  // Light up Claude when available
+  (async () => {
+    try{
+      if (STANDALONE) return;
+      sampleFn = await window.claude.use("sample");
+      if (!sampleFn) return;
+      const lim = await sampleFn.limits().catch(()=>null);
+      canImages = !!lim?.images;
+      updateCaptureUI();
+      if (canImages){ $("textBox").hidden = true; }
+    }catch{}
+  })();
+})();
+</script>
+
+</body>
+</html>

@@ -630,7 +630,11 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
       if (out && !(cjk.test(out.slice(-1)) && cjk.test(l[0]))) out += " ";
       out += l;
     }
-    return out.replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+(?=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, "$1").trim();
+    out = out.replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+(?=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, "$1").trim();
+    // 常见识别错字
+    const FIX = [[/([麦乳奶淀米豆])份/g,"$1粉"],[/柠[样橡様]/g,"柠檬"],[/碳酸[氧気]/g,"碳酸氢"],[/[困葡]萄/g,"葡萄"],[/糖[桨奖]/g,"糖浆"],[/棕[习榈欄]油/g,"棕榈油"],[/白砂[塘糖]/g,"白砂糖"],[/香[靖晴]/g,"香精"]];
+    for (const [re, to] of FIX) out = out.replace(re, to);
+    return out;
   }
   async function localOCR(file){
     setBusy(true, "正在加载识别模型…");
@@ -645,10 +649,18 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
         });
       }
       setBusy(true, "正在识别文字…");
-      await ocrWorker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
       const img = await prepImage(file);
-      const { data } = await ocrWorker.recognize(img);
-      const text = cleanOCR(data.text || "");
+      // 先用自动版面分析；认出的配料太少，再用「零散文字」模式试一次，取认得多的那次
+      const score = t => { const r = t ? localAnalyze(t) : null; return r ? r.ingredients.filter(g => g.type !== "其他").length : -1; };
+      await ocrWorker.setParameters({ tessedit_pageseg_mode: "3" });
+      let text = cleanOCR((await ocrWorker.recognize(img)).data.text || "");
+      let best = score(text);
+      if (best < 3){
+        setBusy(true, "再换一种方式识别…");
+        await ocrWorker.setParameters({ tessedit_pageseg_mode: "11" });
+        const t2 = cleanOCR((await ocrWorker.recognize(img)).data.text || "");
+        if (score(t2) > best) text = t2;
+      }
       $("labelText").value = text; $("textBox").hidden = false;
       $("capHint").textContent = "识别出的文字在上面的框里，可能有错字。改好后点「分析这段配料」重新分析。iPhone 相机自带的实况文本识别更准，也可以用它拷贝文字粘贴进来。";
       const res = text ? localAnalyze(text) : null;

@@ -110,6 +110,7 @@ textarea{width:100%;min-height:110px;resize:vertical;padding:12px;border:1px sol
 .tab-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 8px;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-weight:700;cursor:pointer}
 .tab-btn[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .tab-score{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.warn{font-size:14px;background:var(--caution-soft);color:var(--caution);padding:10px 12px;border-radius:10px}
 .kid-basis{margin:0;font-size:12.5px;color:var(--muted);background:var(--accent-soft);padding:8px 12px;border-radius:10px}
 footer{font-size:12px;color:var(--muted);line-height:1.6}
 </style>
@@ -230,15 +231,25 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
   const ALLERGEN_KEYS = [["小麦","麸质","wheat","gluten"],["牛奶","牛乳","乳粉","奶粉","乳清","奶油","黄油","milk"],["鸡蛋","蛋黄","蛋清","全蛋","egg"],["大豆","黄豆","soy"],["花生","peanut"],["杏仁","核桃","腰果","榛子","开心果","坚果","nut"],["鱼","fish"],["虾","蟹","贝","shrimp","crab"],["芝麻","sesame"]];
   const ALLERGEN_NAMES = ["含麸质谷物","乳","蛋","大豆","花生","树坚果","鱼","甲壳类","芝麻"];
 
+  const CJK = "\\u4e00-\\u9fff";
+  function isGarbage(s){
+    const good = (s.match(new RegExp("[" + CJK + "A-Za-z ]","g")) || []).length;
+    if (good / s.length < 0.75) return true;                       // 数字、符号太多
+    if (/\d{3,}/.test(s)) return true;                               // 邮编、电话、批号
+    const hasCJK = new RegExp("[" + CJK + "]").test(s);
+    if (!hasCJK && !/[A-Za-z]{3,}/.test(s)) return true;           // 零散字母
+    if (!hasCJK && s.split(/\s+/).length > 5) return true;          // 一整句英文说明
+    return false;
+  }
   function splitIngredients(text){
     let t = text.replace(/\s+/g," ").trim();
-    const m = t.match(/(配料表?|原料|ingredients)\s*[:：]?/i);
+    const m = t.match(/(配料表?|原料|ingredients?|ingrédients)\s*[:：]?/i);
     if (m) t = t.slice(m.index + m[0].length);
-    t = t.split(/(产品标准|执行标准|生产日期|保质期|贮存条件|营养成分|致敏物质|过敏原|净含量)/)[0];
-    return t.split(/[,，、;；()（）\[\]【】{}]|\s{2,}|\n/)
-      .map(s => s.replace(/^[\s:：.。*]+|[\s.。*]+$/g,"").replace(/[\d.]+\s*%$/,"").trim())
-      .filter(s => s && s.length < 40 && !/^(含|食品添加剂|添加剂)$/.test(s))
-      .map(s => s.replace(/^(食品添加剂|含)/,""));
+    t = t.split(/(产品标准|执行标准|生产日期|保质期|贮存条件|储存条件|营养成分|致敏物质|过敏原|净含量|生产商|生产许可|委托方|制造商|产地|地址|电话|nutrition facts|contains:|may contain|distributed by|manufactured|made in|net wt|best before|keep refrigerated|store in|allergen|\bcorp\b|\binc\b|\bllc\b)/i)[0];
+    return t.split(/[,，、;；()（）\[\]【】{}]|\s{2,}|\n|\.\s/)
+      .map(s => s.replace(/^[\s:：.。*•·-]+|[\s.。*•·-]+$/g,"").replace(/[\d.]+\s*%$/,"").trim())
+      .filter(s => s && s.length < 40 && !/^(含|食品添加剂|添加剂|and|和)$/i.test(s) && !isGarbage(s))
+      .map(s => s.replace(/^(食品添加剂|含)/,"").replace(/^and\s+/i,""));
   }
   function matchRule(name){
     const n = name.toLowerCase();
@@ -273,7 +284,9 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
     if (ingredients.some(g=>g.level==="avoid")) tips.push("含有建议少吃的成分，可以找同类里配料更干净的替代品。");
     if (additives > 5) tips.push(`添加剂约 ${additives} 种，偏多，说明加工程度高。`);
     if (!tips.length) tips.push("配料比较干净，再看看营养成分表里的钠和能量。");
-    return {product:null, ingredients, score, verdict:verdictFor(score), summary:"", tips:tips.slice(0,3), allergens, engine:"local"};
+    const matched = ingredients.filter(g => g.type !== "其他").length;
+    const lowConfidence = ingredients.length < 2 || matched / ingredients.length < 0.5;
+    return {product:null, ingredients, score, verdict:verdictFor(score), summary:"", tips:tips.slice(0,3), allergens, engine:"local", lowConfidence};
   }
   // ---- 4 岁儿童评估 ----
   // 依据《中国学龄前儿童膳食指南（2022）》：4–5 岁每天盐 <3 g，添加糖最好 <25 g；
@@ -384,6 +397,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
     box.append(tabs);
 
     if (opts.example) box.append(el("span","sample-flag","示例：某款夹心饼干"));
+    if (res.lowConfidence) box.append(el("div","warn","大部分文字没认出来，可能是照片识别有误，或者拍的不是食品配料表。请检查上面框里的文字，改好后点「分析这段配料」。结果仅供参考。"));
     const score = isKid ? kid.score : res.score;
     const L = isKid ? KID_LEVELS : LEVELS;
     const levelAt = i => isKid ? kid.items[i].level : res.ingredients[i].level;
@@ -591,6 +605,33 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
       document.head.append(sc);
     });
   }
+  // 缩小到合适尺寸、转灰度、拉高对比度，Tesseract 识别更准也更快
+  async function prepImage(file){
+    try{
+      const bmp = await createImageBitmap(file, {imageOrientation:"from-image"});
+      const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const w = Math.round(bmp.width*scale), h = Math.round(bmp.height*scale);
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d"); cx.drawImage(bmp, 0, 0, w, h);
+      const im = cx.getImageData(0,0,w,h), d = im.data;
+      let sum = 0; for (let i=0;i<d.length;i+=4){ const y = .299*d[i]+.587*d[i+1]+.114*d[i+2]; d[i]=y; sum+=y; }
+      const mean = sum / (d.length/4);
+      for (let i=0;i<d.length;i+=4){ let y = (d[i]-mean)*1.6 + 128; y = y<0?0:y>255?255:y; d[i]=d[i+1]=d[i+2]=y; }
+      cx.putImageData(im,0,0);
+      return cv;
+    }catch{ return file; }
+  }
+  // 拼回换行：中文之间直接连，其他情况补空格；去掉中文字之间多余的空格
+  function cleanOCR(raw){
+    const cjk = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/;
+    const lines = raw.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    let out = "";
+    for (const l of lines){
+      if (out && !(cjk.test(out.slice(-1)) && cjk.test(l[0]))) out += " ";
+      out += l;
+    }
+    return out.replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+(?=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, "$1").trim();
+  }
   async function localOCR(file){
     setBusy(true, "正在加载识别模型…");
     try{
@@ -604,11 +645,12 @@ footer{font-size:12px;color:var(--muted);line-height:1.6}
         });
       }
       setBusy(true, "正在识别文字…");
-      const { data } = await ocrWorker.recognize(file);
-      const text = (data.text || "")
-        .replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+(?=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, "$1")
-        .replace(/\n+/g, "").trim();
+      await ocrWorker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
+      const img = await prepImage(file);
+      const { data } = await ocrWorker.recognize(img);
+      const text = cleanOCR(data.text || "");
       $("labelText").value = text; $("textBox").hidden = false;
+      $("capHint").textContent = "识别出的文字在上面的框里，可能有错字。改好后点「分析这段配料」重新分析。iPhone 相机自带的实况文本识别更准，也可以用它拷贝文字粘贴进来。";
       const res = text ? localAnalyze(text) : null;
       if (!res){ showErr("没识别出配料。让配料表填满画面、光线均匀再拍一次，或者直接在框里输入文字。"); return; }
       render(res, {text}); saveHist(res); hideErr();
